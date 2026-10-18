@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#18253a">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Label Log</title>
+<style>
+  :root{
+    --ink:#18253a; --paper:#eceff3; --card:#ffffff; --line:#c9d1dc; --denim:#2f5d9b;
+    --ok:#167a4a; --warn:#9a5b00; --bad:#b42318; --mute:#5b6778;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --ink:#e8edf4; --paper:#101722; --card:#182231; --line:#33425a; --denim:#6f9ddb; --mute:#9aa8bc; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  header{position:sticky;top:0;z-index:2;background:var(--ink);color:#fff;padding:10px 12px;display:grid;gap:8px}
+  @media (prefers-color-scheme: dark){ header{background:#0a0f18;color:#e8edf4} }
+  .row{display:flex;gap:8px;align-items:center}
+  select,input,textarea,button{font:inherit;color:inherit}
+  select{flex:1;min-width:0;padding:10px;border-radius:8px;border:1px solid #ffffff55;background:#ffffff18;color:inherit}
+  select option{color:#000}
+  header button{padding:10px 12px;border-radius:8px;border:1px solid #ffffff55;background:#ffffff18;color:inherit}
+  #net{font-size:14px;flex:1}
+  main{padding:12px;display:grid;gap:12px;max-width:560px;margin:0 auto}
+  .count{font-size:15px;color:var(--mute)}
+  .count b{color:var(--ink);font-size:20px}
+  .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden;margin-top:6px}
+  .bar i{display:block;height:100%;background:var(--denim);width:0}
+  .shoot{display:block;text-align:center;padding:26px 12px;border-radius:14px;background:var(--denim);color:#fff;font-size:22px;font-weight:700;cursor:pointer}
+  @media (prefers-color-scheme: dark){ .shoot{color:#08121f} }
+  .btn{padding:14px;border-radius:12px;border:2px solid var(--line);background:var(--card);font-weight:600;cursor:pointer}
+  .btn.ok{background:var(--ok);border-color:var(--ok);color:#fff;font-size:20px;padding:18px}
+  .btn.bad{border-color:var(--bad);color:var(--bad)}
+  .btn:focus-visible,.shoot:focus-within,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--denim);outline-offset:2px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:10px}
+  #preview{width:100%;max-height:220px;object-fit:contain;background:#000;border-radius:8px}
+  .fields{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  label.f{display:grid;gap:4px;font-size:13px;color:var(--mute)}
+  label.f input{font-size:24px;font-weight:700;padding:8px;border:2px solid var(--line);border-radius:10px;background:var(--paper);width:100%;text-align:center}
+  #f_o{font-size:16px;text-align:left}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{padding:8px 10px;border-radius:999px;border:1px solid var(--line);background:var(--paper);font-size:14px;cursor:pointer}
+  .msg{font-size:14px;color:var(--mute)}
+  .flag{font-size:14px;color:var(--warn);background:#ffb7001f;border-radius:8px;padding:6px 8px}
+  textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--paper);font-family:ui-monospace,Menlo,monospace;font-size:13px}
+  ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+  li.rec{display:flex;gap:8px;align-items:center;font-size:14px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+  li.rec span.t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  li.rec button{border:0;background:none;color:var(--bad);font-size:14px;padding:4px 6px;cursor:pointer}
+  .sync-ok{color:var(--ok)} .sync-wait{color:var(--warn)}
+  dialog{border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink);width:min(92vw,460px)}
+  dialog label{display:grid;gap:4px;margin:10px 0;font-size:14px}
+  dialog input,dialog select{padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);width:100%}
+  #toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;font-size:15px}
+  #toast.show{opacity:1}
+  @media (prefers-reduced-motion: reduce){ #toast{transition:none} }
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <select id="bale" aria-label="Bale"></select>
+    <button id="newBale">+ Bale</button>
+  </div>
+  <div class="row">
+    <span id="net">…</span>
+    <button id="syncBtn">Sync</button>
+    <button id="cfgBtn" aria-label="Settings">⚙</button>
+  </div>
+</header>
+
+<main>
+  <div class="card" id="counter">
+    <div class="count"><b id="seqNext">#1</b> next garment · <span id="sampled">0 of 0</span> sampled</div>
+    <div class="bar"><i id="barfill"></i></div>
+  </div>
+
+  <label class="shoot" for="cam">Photograph label</label>
+  <input id="cam" type="file" accept="image/*" capture="environment" class="hidden">
+  <button class="btn" id="noLabel">No label on this garment</button>
+  <label class="msg" for="gal" style="text-align:center;text-decoration:underline;cursor:pointer">Use a photo already on this phone (testing)</label>
+  <input id="gal" type="file" accept="image/*" class="hidden">
+
+  <section class="card hidden" id="review">
+    <img id="preview" alt="Label photo">
+    <div class="msg" id="busy"></div>
+    <div id="flags"></div>
+    <div class="fields">
+      <label class="f">Cotton %<input id="f_c" inputmode="decimal" placeholder="0"></label>
+      <label class="f">Polyester %<input id="f_p" inputmode="decimal" placeholder="0"></label>
+      <label class="f">Elastane %<input id="f_e" inputmode="decimal" placeholder="0"></label>
+    </div>
+    <label class="f">Other fibres (name and %)<input id="f_o" placeholder="e.g. viscose 30; nylon 5"></label>
+    <div class="chips" id="chips"></div>
+    <details><summary class="msg">What the camera read</summary><textarea id="raw"></textarea></details>
+    <button class="btn ok" id="confirm">Confirm and save</button>
+    <div class="grid2">
+      <button class="btn bad" id="unread">Can't read label</button>
+      <button class="btn" id="discard">Retake</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="msg" style="margin-bottom:6px">Recent</div>
+    <ul id="recent"></ul>
+  </section>
+</main>
+
+<dialog id="cfgDlg">
+  <h3 style="margin:0 0 4px">Settings</h3>
+  <label>Apps Script web app URL<input id="c_url" placeholder="https://script.google.com/macros/s/…/exec"></label>
+  <label>Secret (same as in Code.gs)<input id="c_token"></label>
+  <label>Operator name<input id="c_operator"></label>
+  <label>Default bale size<input id="c_size" inputmode="numeric"></label>
+  <label>Max tolerated off-spec share (0.05 = 5%)<input id="c_p" inputmode="decimal"></label>
+  <label>Confidence (0.95 = 95%)<input id="c_conf" inputmode="decimal"></label>
+  <label>Reading mode
+    <select id="c_psm">
+      <option value="11">Scattered text (try first)</option>
+      <option value="6">One block of text</option>
+      <option value="3">Automatic</option>
+    </select>
+  </label>
+  <div class="grid2">
+    <button class="btn" id="csvBtn">Download backup CSV</button>
+    <button class="btn ok" id="cfgSave" style="font-size:16px;padding:12px">Save</button>
+  </div>
+</dialog>
+<div id="toast"></div>
+
+<script src="parser.js"></script>
+<script>
+'use strict';
+const TESS_VER = '5.1.1';
+const CDN = 'https://cdn.jsdelivr.net/npm/';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+
+let cfg = Object.assign({ url: '', token: '', operator: '', size: 300, p: 0.05, conf: 0.95, psm: '11' }, store.get('cfg', {}));
+let bales = store.get('bales', []);           // [{id,size}]
+let curBale = store.get('bale', '');
+let serverCounts = store.get('counts', {});
+let current = null, worker = null, syncing = false;
+
+/* ---------------- IndexedDB (records + photos waiting to sync) ---------------- */
+const dbp = new Promise((res, rej) => {
+  const q = indexedDB.open('labellog', 1);
+  q.onupgradeneeded = () => q.result.createObjectStore('records', { keyPath: 'id' });
+  q.onsuccess = () => res(q.result);
+  q.onerror = () => rej(q.error);
+});
+function tx(mode, fn){
+  return dbp.then(db => new Promise((res, rej) => {
+    const t = db.transaction('records', mode);
+    const r = fn(t.objectStore('records'));
+    t.oncomplete = () => res(r && r.result);
+    t.onerror = () => rej(t.error);
+  }));
+}
+const dbPut = rec => tx('readwrite', s => s.put(rec));
+const dbAll = () => tx('readonly', s => s.getAll());
+const dbDel = id => tx('readwrite', s => s.delete(id));
+
+/* ---------------- helpers ---------------- */
+function uuid(){ return (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now() + '-' + Math.random().toString(16).slice(2)); }
+function toast(t){ const e = $('toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), 2200); }
+function num(v){ const x = parseFloat(String(v).replace(',', '.')); return isNaN(x) ? null : x; }
+function reqN(N, p, conf){
+  const D = Math.ceil(Math.round(p * N * 1e6) / 1e6);
+  for (let n = 1; n <= N; n++){
+    let q = 1; for (let i = 0; i < D; i++) q *= (N - n - i) / (N - i);
+    if (q <= (1 - conf) + 1e-12) return n;
+  }
+  return N;
+}
+function loadScript(src){
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('load ' + src)); document.head.appendChild(s); });
+}
+const FLAG_TEXT = {
+  multipart: 'Label has more than one fabric (e.g. shell + lining). Main fabric shown.',
+  sum_not_100: "Percentages don't add up to 100. Check the label.",
+  polyurethane_as_elastane: 'Polyurethane was counted as elastane.',
+  excludes_trim: 'Label says it excludes trim/decoration.',
+  ratio_format: 'Read from a ratio like 60/40. Check it.',
+  unpaired_tokens: 'Some text could not be matched to a percentage.',
+  unpaired_text: 'Some text could not be matched to a percentage.'
+};
+
+/* ---------------- bales ---------------- */
+function renderBales(){
+  const sel = $('bale'); sel.innerHTML = '';
+  if (!bales.length){ const o = document.createElement('option'); o.value = ''; o.textContent = 'Add a bale with + Bale'; sel.appendChild(o); }
+  bales.forEach(b => { const o = document.createElement('option'); o.value = b.id; o.textContent = b.id; sel.appendChild(o); });
+  if (!bales.find(b => b.id === curBale)) curBale = bales.length ? bales[0].id : '';
+  sel.value = curBale; store.set('bale', curBale); store.set('bales', bales);
+}
+$('bale').onchange = e => { curBale = e.target.value; store.set('bale', curBale); refresh(); };
+$('newBale').onclick = () => {
+  const id = (prompt('Bale ID (e.g. B-0042)') || '').trim();
+  if (!id) return;
+  if (/[\s,]/.test(id)) { alert('Bale ID cannot contain spaces or commas.'); return; }
+  const size = parseInt(prompt('Garments in this bale', cfg.size), 10) || cfg.size;
+  if (!bales.find(b => b.id === id)) bales.push({ id, size });
+  curBale = id; renderBales(); refresh();
+};
+function baleSize(){ const b = bales.find(x => x.id === curBale); return (b && b.size) || cfg.size; }
+
+/* ---------------- screen refresh ---------------- */
+async function refresh(){
+  const recs = await dbAll();
+  const mine = recs.filter(r => r.bale === curBale);
+  const localMax = mine.reduce((m, r) => Math.max(m, r.seq), 0);
+  const done = Math.max(localMax, serverCounts[curBale] || 0);
+  const need = curBale ? reqN(baleSize(), cfg.p, cfg.conf) : 0;
+  $('seqNext').textContent = '#' + (done + 1);
+  $('sampled').textContent = done + ' of ' + need;
+  $('barfill').style.width = need ? Math.min(100, done / need * 100) + '%' : '0';
+  const pending = recs.filter(r => !r.synced).length;
+  $('net').textContent = (navigator.onLine ? '● Online' : '○ Offline') + ' · ' + pending + ' waiting to sync';
+  const ul = $('recent'); ul.innerHTML = '';
+  recs.sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, 8).forEach(r => {
+    const li = document.createElement('li'); li.className = 'rec';
+    const t = document.createElement('span'); t.className = 't';
+    const f = r.status === 'no label' || r.status === 'unreadable' ? '' : ' ' + r.cotton + 'C ' + r.polyester + 'P ' + r.elastane + 'E';
+    t.textContent = r.bale + ' #' + r.seq + f + ' · ' + r.status;
+    const s = document.createElement('span'); s.className = r.synced ? 'sync-ok' : 'sync-wait'; s.textContent = r.synced ? 'synced' : 'waiting';
+    li.append(t, s);
+    if (!r.synced){ const b = document.createElement('button'); b.textContent = 'Undo'; b.onclick = async () => { await dbDel(r.id); refresh(); }; li.append(b); }
+    ul.appendChild(li);
+  });
+}
+
+/* ---------------- OCR ---------------- */
+async function getWorker(){
+  if (worker) return worker;
+  const logger = m => { if (m.status === 'recognizing text') $('busy').textContent = 'Reading label… ' + Math.round(m.progress * 100) + '%'; };
+  if (!window.Tesseract){
+    try { await loadScript('lib/tesseract.min.js'); }
+    catch (e) { await loadScript(CDN + 'tesseract.js@' + TESS_VER + '/dist/tesseract.min.js'); }
+  }
+  try { worker = await Tesseract.createWorker('eng', 1, { workerPath: 'lib/worker.min.js', corePath: 'lib/', langPath: 'lib/', gzip: true, logger }); }
+  catch (e) { worker = await Tesseract.createWorker('eng', 1, { logger }); }
+  return worker;
+}
+async function runOcr(canvas){
+  const w = await getWorker();
+  await w.setParameters({ tessedit_pageseg_mode: String(cfg.psm || '11'), preserve_interword_spaces: '1' });
+  const { data } = await w.recognize(canvas);
+  return { text: data.text || '', conf: data.confidence };
+}
+async function loadBitmap(file){
+  try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch (e) { return await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); }); }
+}
+function scaled(src, max){
+  const s = Math.min(1, max / Math.max(src.width, src.height));
+  const c = document.createElement('canvas'); c.width = Math.round(src.width * s); c.height = Math.round(src.height * s);
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height); return c;
+}
+function prepForOcr(src){           // greyscale + contrast stretch (1st-99th percentile)
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const ctx = c.getContext('2d'); ctx.drawImage(src, 0, 0);
+  const img = ctx.getImageData(0, 0, c.width, c.height), a = img.data, n = a.length / 4;
+  const g = new Uint8Array(n), hist = new Uint32Array(256);
+  for (let i = 0, j = 0; j < n; i += 4, j++){ const v = (0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2]) | 0; g[j] = v; hist[v]++; }
+  let lo = 0, hi = 255, acc = 0;
+  while (lo < 255 && acc + hist[lo] < n * 0.01){ acc += hist[lo]; lo++; }
+  acc = 0; while (hi > 0 && acc + hist[hi] < n * 0.01){ acc += hist[hi]; hi--; }
+  const range = Math.max(20, hi - lo);
+  for (let i = 0, j = 0; j < n; i += 4, j++){ const v = Math.max(0, Math.min(255, ((g[j] - lo) * 255 / range) | 0)); a[i] = a[i + 1] = a[i + 2] = v; }
+  ctx.putImageData(img, 0, 0); return c;
+}
+
+/* ---------------- capture -> review ---------------- */
+async function handleFile(f){
+  if (!f) return;
+  if (!curBale){ alert('Add or select a bale first (+ Bale).'); return; }
+  $('review').classList.remove('hidden'); clearFields(); $('busy').textContent = 'Preparing photo…';
+  $('review').scrollIntoView({ behavior: 'smooth' });
+  try {
+    const bmp = await loadBitmap(f);
+    const store1 = scaled(bmp, 1024), big = scaled(bmp, 1800);
+    if (bmp.close) bmp.close();
+    const photo = await new Promise(r => store1.toBlob(r, 'image/jpeg', 0.7));
+    $('preview').src = URL.createObjectURL(photo);
+    current = { photo, raw: '', conf: null, orig: null, flags: [] };
+    $('busy').textContent = 'Reading label…';
+    try { const o = await runOcr(prepForOcr(big)); current.raw = o.text.trim(); current.conf = Math.round(o.conf); }
+    catch (e) { $('busy').textContent = 'Reading failed (' + e.message + '). Type the values or tap Retake.'; }
+    const parsed = LabelParser.parse(current.raw);
+    current.flags = parsed.flags;
+    $('raw').value = current.raw;
+    if (parsed.ok){
+      const p = parsed.primary;
+      $('f_c').value = p.cotton || ''; $('f_p').value = p.polyester || ''; $('f_e').value = p.elastane || '';
+      $('f_o').value = LabelParser.formatOther(p.other);
+      current.orig = snapshot();
+      $('busy').textContent = 'Check the numbers against the label, then confirm.' + (current.conf != null ? ' (read confidence ' + current.conf + '%)' : '');
+    } else if (!$('busy').textContent.startsWith('Reading failed')){
+      $('busy').textContent = 'No fibre percentages found. Type them in, or tap Can\'t read label.';
+    }
+    $('flags').innerHTML = '';
+    current.flags.forEach(fl => { if (FLAG_TEXT[fl]){ const d = document.createElement('div'); d.className = 'flag'; d.textContent = FLAG_TEXT[fl]; $('flags').appendChild(d); } });
+  } catch (e) { $('busy').textContent = 'Could not open the photo: ' + e.message; }
+}
+['cam', 'gal'].forEach(id => $(id).addEventListener('change', ev => { const f = ev.target.files[0]; ev.target.value = ''; handleFile(f); }));
+function clearFields(){ ['f_c', 'f_p', 'f_e', 'f_o', 'raw'].forEach(i => $(i).value = ''); $('flags').innerHTML = ''; current = null; $('preview').removeAttribute('src'); }
+function snapshot(){ return { c: num($('f_c').value) || 0, p: num($('f_p').value) || 0, e: num($('f_e').value) || 0, o: $('f_o').value.trim().toLowerCase() }; }
+function otherSum(s){ return (s.match(/\d+(\.\d+)?/g) || []).reduce((a, b) => a + parseFloat(b), 0); }
+
+const CHIPS = [['100% cotton', 100, 0, 0, ''], ['100% polyester', 0, 100, 0, ''], ['95 cotton / 5 elastane', 95, 0, 5, ''], ['65 poly / 35 cotton', 35, 65, 0, ''], ['50 / 50 cotton poly', 50, 50, 0, '']];
+CHIPS.forEach(c => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = c[0];
+  b.onclick = () => { $('f_c').value = c[1] || ''; $('f_p').value = c[2] || ''; $('f_e').value = c[3] || ''; $('f_o').value = c[4]; }; $('chips').appendChild(b); });
+
+/* ---------------- saving ---------------- */
+async function saveRecord(r){
+  const recs = await dbAll();
+  const localMax = recs.filter(x => x.bale === curBale).reduce((m, x) => Math.max(m, x.seq), 0);
+  r.seq = Math.max(localMax, serverCounts[curBale] || 0) + 1;
+  r.id = uuid(); r.ts = new Date().toISOString(); r.bale = curBale; r.baleSize = baleSize();
+  r.operator = cfg.operator; r.synced = 0;
+  await dbPut(r);
+  toast('Saved ' + curBale + ' #' + r.seq);
+  $('review').classList.add('hidden'); clearFields();
+  await refresh(); syncAll();
+}
+$('confirm').onclick = async () => {
+  if (!current) return;
+  const s = snapshot();
+  if (!s.c && !s.p && !s.e && !s.o){ alert('Enter at least one fibre percentage, or tap "Can\'t read label".'); return; }
+  const total = s.c + s.p + s.e + otherSum(s.o);
+  if (Math.abs(total - 100) > 2 && !confirm('These add up to ' + Math.round(total * 10) / 10 + '%, not 100%. Save anyway?')) return;
+  const edited = !current.orig || JSON.stringify(current.orig) !== JSON.stringify(s);
+  await saveRecord({
+    raw: current.raw, cotton: s.c, polyester: s.p, elastane: s.e, other: $('f_o').value.trim(),
+    status: edited ? 'corrected by user' : 'readable', flags: current.flags, conf: current.conf, photo: current.photo
+  });
+};
+$('unread').onclick = async () => {
+  if (!current) return;
+  await saveRecord({ raw: current.raw, cotton: null, polyester: null, elastane: null, other: '', status: 'unreadable', flags: current.flags, conf: current.conf, photo: current.photo });
+};
+$('noLabel').onclick = async () => {
+  if (!curBale){ alert('Add or select a bale first (+ Bale).'); return; }
+  await saveRecord({ raw: '', cotton: null, polyester: null, elastane: null, other: '', status: 'no label', flags: [], conf: null, photo: null });
+};
+$('discard').onclick = () => { $('review').classList.add('hidden'); clearFields(); };
+
+/* ---------------- sync ---------------- */
+function blobToB64(b){ return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(b); }); }
+async function syncAll(manual){
+  if (syncing) return;
+  if (!cfg.url || !cfg.token){ if (manual) toast('Set the web app URL and secret in ⚙'); return; }
+  syncing = true;
+  try {
+    const recs = (await dbAll()).filter(r => !r.synced).sort((a, b) => a.ts.localeCompare(b.ts));
+    for (const r of recs){
+      const payload = Object.assign({}, r); delete payload.photo; delete payload.synced;
+      if (r.photo) payload.photoB64 = await blobToB64(r.photo);
+      const resp = await fetch(cfg.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token: cfg.token, record: payload }) });
+      const j = await resp.json();
+      if (!j.ok){ toast('Server said: ' + j.error); break; }
+      r.synced = 1; r.photoUrl = j.photoUrl || ''; r.photo = null;
+      await dbPut(r);
+      await refresh();
+    }
+    await pullBales();
+    if (manual) toast('Sync finished');
+  } catch (e) {
+    if (manual) toast('Still offline or server unreachable');
+  } finally { syncing = false; refresh(); }
+}
+async function pullBales(){
+  if (!cfg.url || !cfg.token) return;
+  const resp = await fetch(cfg.url + '?token=' + encodeURIComponent(cfg.token));
+  const j = await resp.json();
+  if (!j.ok) return;
+  j.bales.forEach(b => {
+    serverCounts[b.id] = b.count;
+    const ex = bales.find(x => x.id === b.id);
+    if (ex){ if (b.size) ex.size = b.size; } else bales.push({ id: b.id, size: b.size || cfg.size });
+  });
+  store.set('counts', serverCounts); renderBales();
+}
+$('syncBtn').onclick = () => syncAll(true);
+window.addEventListener('online', () => { refresh(); syncAll(); });
+window.addEventListener('offline', refresh);
+setInterval(() => { if (navigator.onLine) syncAll(); }, 45000);
+
+/* ---------------- settings ---------------- */
+$('cfgBtn').onclick = () => {
+  $('c_url').value = cfg.url; $('c_token').value = cfg.token; $('c_operator').value = cfg.operator;
+  $('c_size').value = cfg.size; $('c_p').value = cfg.p; $('c_conf').value = cfg.conf; $('c_psm').value = cfg.psm;
+  $('cfgDlg').showModal();
+};
+$('cfgSave').onclick = () => {
+  cfg = { url: $('c_url').value.trim(), token: $('c_token').value.trim(), operator: $('c_operator').value.trim(),
+    size: parseInt($('c_size').value, 10) || 300, p: num($('c_p').value) || 0.05, conf: num($('c_conf').value) || 0.95, psm: $('c_psm').value };
+  store.set('cfg', cfg); $('cfgDlg').close(); refresh(); syncAll();
+};
+$('csvBtn').onclick = async () => {
+  const recs = (await dbAll()).sort((a, b) => a.ts.localeCompare(b.ts));
+  const cols = ['ts', 'bale', 'seq', 'photoUrl', 'raw', 'cotton', 'polyester', 'elastane', 'other', 'status', 'operator', 'flags', 'id', 'conf', 'synced'];
+  const esc = v => '"' + String(v === null || v === undefined ? '' : (Array.isArray(v) ? v.join(' ') : v)).replace(/"/g, '""') + '"';
+  const csv = [cols.join(',')].concat(recs.map(r => cols.map(c => esc(r[c])).join(','))).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = 'label-log-backup-' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
+};
+
+/* ---------------- start ---------------- */
+renderBales(); refresh();
+if (cfg.url) syncAll();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (!cfg.url) setTimeout(() => $('cfgBtn').click(), 400);
+</script>
+</body>
+</html>
